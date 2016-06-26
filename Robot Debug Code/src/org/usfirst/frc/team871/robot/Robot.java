@@ -1,0 +1,233 @@
+package org.usfirst.frc.team871.robot;
+
+import org.usfirst.frc.team871.tools.EnhancedController;
+import org.usfirst.frc.team871.tools.EnhancedController.Axis;
+import org.usfirst.frc.team871.tools.EnhancedController.Button;
+import org.usfirst.frc.team871.tools.VarMotor;
+import org.usfirst.frc.team871.tools.VarMotor.MotorType;
+
+import edu.wpi.first.wpilibj.AnalogInput;
+import edu.wpi.first.wpilibj.Compressor;
+import edu.wpi.first.wpilibj.DigitalInput;
+import edu.wpi.first.wpilibj.IterativeRobot;
+import edu.wpi.first.wpilibj.Relay;
+import edu.wpi.first.wpilibj.Solenoid;
+import edu.wpi.first.wpilibj.networktables.NetworkTable;
+import edu.wpi.first.wpilibj.smartdashboard.SendableChooser;
+import edu.wpi.first.wpilibj.smartdashboard.SmartDashboard;
+
+public class Robot extends IterativeRobot {
+    
+	final String defaultAuto = "Default";
+    final String customAuto = "My Auto";
+    String autoSelected;
+    SendableChooser chooser;
+	
+    NetworkTable dashBoard;			//The dash board network table.  The dash board class cannot be used as it does not support all necessary methods.
+    
+    DigitalInput[] digInput;		//Array containing references to all digital channels
+    Solenoid[] solenoids;			//Array containing references to all solenoid channels
+    Relay[] relays;					//Array containing references to all relay channels
+    AnalogInput[] analogIns;		//Array containing references to all analog channels
+    Compressor comp;				//Compressor device reference
+    VarMotor testMotor1, testMotor2;				//Reference to a custom motor type which can be set to control any motor type
+    EnhancedController joystick;	//Reference to a custom joystick type
+    
+    boolean updateMotorPrev;		//Boolean used to store the previous state of the motor update boolean for debouncing purposes
+    boolean[] digitalValues;		//Boolean array used to hold all digital values for sending
+    boolean[] PCMValues;			//Boolean array used to receive and set the value of each solenoid
+    double[] relayValues;			//Double array used to receive and set the value of each relay
+    double[] analogueValues;		//Double array used to hold all analog inputs to be sent to the dashboard
+    double[] defaultMotorValue;		//Default motor values required to read from the network table.  All 0.0.
+    
+    
+    public void robotInit() {
+        chooser = new SendableChooser();
+        chooser.addDefault("Default Auto", defaultAuto);
+        chooser.addObject("My Auto", customAuto);
+        SmartDashboard.putData("Auto choices", chooser);
+        
+        dashBoard = NetworkTable.getTable("SmartDashboard");//Links dashBoard to the dash board network table
+        comp = new Compressor();							//Creates a new compressor reference
+        testMotor1 = new VarMotor();							//Creates a new variable motor reference
+        testMotor2 = new VarMotor();
+        joystick = new EnhancedController(0);				//Creates a new enhanced controller reference
+        
+        defaultMotorValue = new double[] {0.0, 0.0, 0.0, 0.0};
+        
+        /*
+         * The following section initializes each array of device references and its corresponding value array.  Each is set to a new array of the
+         * correct type whose size is hard coded to the number of channels of that device on the roboRIO.  The index of a particular device reference
+         * in its array corresponds to the channel that that device is on.
+         */
+        
+        digitalValues = new boolean[10];
+        digInput = new DigitalInput[10]; 
+        for(int i = 0; i < digInput.length; i++)
+        	digInput[i] = new DigitalInput(i); 
+        
+        PCMValues = new boolean[9];
+        solenoids = new Solenoid[8];
+        for(int i = 0; i < solenoids.length; i++) 
+        	solenoids[i] = new Solenoid(i);
+        
+        relayValues = new double[4];
+        relays = new Relay[4];
+        for(int i = 0; i < relays.length; i++) 
+        	relays[i] = new Relay(i);
+        
+        analogIns = new AnalogInput[4];
+        analogueValues = new double[4];
+        for (int i = 0; i < analogIns.length; i++)
+        	analogIns[i] = new AnalogInput(i);
+
+    }
+    
+    
+    public void autonomousInit() {
+    	autoSelected = (String) chooser.getSelected();
+//		autoSelected = SmartDashboard.getString("Auto Selector", defaultAuto);
+		System.out.println("Auto selected: " + autoSelected);
+    }
+
+    public void autonomousPeriodic() {
+    	switch(autoSelected) {
+    	case customAuto:
+            break;
+    	case defaultAuto:
+    	default:
+            break;
+    	}
+    	
+    }
+
+    public void teleopPeriodic() {
+    	boolean updateMotor = false;						//Boolean used to debounce the button controlling the updating of the motor
+    	double speed1 = 0.0;								//Double used to temporarily store the current speed being set by the joystick
+    	double speed2 = 0.0;
+    	
+    	/*
+    	 * The following steps through each device reference array, reads the value, then stores it to the corresponding 
+    	 * spot in the values array.  The values array is then pushed to the dash board network table.  This is why the SmartDashboard 
+    	 * class cannot be used, as it does not support reading or writing entire arrays.
+    	 */
+    	
+        for(int i = 0; i < digInput.length; i++)
+        	digitalValues[i] = digInput[i].get();
+        dashBoard.putBooleanArray("DIO Values", digitalValues);
+        
+        for (int i = 0; i < analogIns.length; i++)
+        	analogueValues[i] = analogIns[i].getAverageVoltage();
+        dashBoard.putNumberArray("analogueValues", analogueValues);
+        
+        relayValues = dashBoard.getNumberArray("RELAY Values", new double[relayValues.length]);
+        for(int i = 0; i < relayValues.length; i++){
+        	switch((int)relayValues[i]){
+        	case 0:
+        		relays[i].set(Relay.Value.kOff);
+        		break;
+        		
+        	case 1:
+        		relays[i].set(Relay.Value.kOn);
+        		break;
+        		
+        	case 2:
+        		relays[i].set(Relay.Value.kForward);
+        		break;
+        		
+        	case 3:
+        		relays[i].set(Relay.Value.kReverse);
+        		break;
+        		
+        	default:
+        		break;
+        	}
+        }
+        
+        /*
+         * For the PCM, the compressor enable boolean is sent over as the first in the array as opposed to 
+         * the first solenoid value.  Since the solenoid device references start at index 0, but the PCM values to be
+         * set start at one, each solenoid is set to the value one above its index.
+         */
+        
+        PCMValues = dashBoard.getBooleanArray("PCM Values", new boolean[PCMValues.length]);
+        for(int i = 1; i < PCMValues.length; i++) 
+        	solenoids[i-1].set(PCMValues[i]);
+        
+        if(PCMValues[0] && !comp.enabled()) comp.start();	//Allows the user to enable or disable the compressor 
+        if(!PCMValues[0] && comp.enabled()) comp.stop();	//Does not override pressure switch
+        
+        
+        speed1 = joystick.getValue(Axis.LEFTY);				//Temporarily stores the joystick speed after deadbanding
+        speed2 = joystick.getValue(Axis.RIGHTY);
+        
+        double[] speeds = {0.0, 0.0};
+        
+        if (testMotor1.getType() != MotorType.NULL) {
+        	switch ((int)dashBoard.getNumberArray("motor1Setter", defaultMotorValue)[2]) {
+        	case 1:
+        		speeds[0] = (testMotor1.getInvert()) ? -speed1 : speed1;
+        		testMotor1.setSpeed(speed1);
+        		break;
+        	case 2:
+        		speeds[0] = (testMotor1.getInvert()) ? -speed2 : speed2;
+        		testMotor1.setSpeed(speed2);
+        		break;
+        	default:
+        		break;
+        	}
+        }
+        if (testMotor2.getType() != MotorType.NULL) {
+        	switch ((int)dashBoard.getNumberArray("motor2Setter", defaultMotorValue)[2]) {
+        	case 1:
+        		speeds[1] = (testMotor2.getInvert()) ? -speed1 : speed1;
+        		testMotor2.setSpeed(speed1);
+        		break;
+        	case 2:
+        		speeds[1] = (testMotor2.getInvert()) ? -speed2 : speed2;
+        		testMotor2.setSpeed(speed2);
+        		break;
+        	default:
+        		break;
+        	}
+        }
+        dashBoard.putNumberArray("speeds", speeds);
+        
+        
+        updateMotor = dashBoard.getBoolean("setMotor", false) || joystick.getDebouncedButton(Button.LEFTSTICK);
+        if ((updateMotor) && (updateMotor != updateMotorPrev)) {	//Debounces motor setter button        	
+        	testMotor1.changeMotor(
+        			MotorType.getMotorType((int) dashBoard.getNumberArray("motor1Setter", defaultMotorValue)[0]), 
+        			(int) dashBoard.getNumberArray("motor1Setter", defaultMotorValue)[1],
+        			(dashBoard.getNumberArray("motor1Setter", defaultMotorValue)[3] == 1));
+        	testMotor2.changeMotor(
+        			MotorType.getMotorType((int) dashBoard.getNumberArray("motor2Setter", defaultMotorValue)[0]), 
+        			(int) dashBoard.getNumberArray("motor2Setter", defaultMotorValue)[1],
+        			(dashBoard.getNumberArray("motor2Setter", defaultMotorValue)[3] == 1));
+        	/*The following allows JOYSTICK deadbanding.  This prevents the motors from moving when the stick is slightly off center
+        	*Values are scaled from the deadband value to 1, so it will still output miniscule values when close to the deadband value.
+        	*See EnhancedJoystick for more information*/
+        	joystick.setAxisDeadband(Axis.LEFTY, dashBoard.getNumber("dead", 0.0));
+        	joystick.setAxisDeadband(Axis.RIGHTY, dashBoard.getNumber("dead", 0.0));
+        }
+        updateMotorPrev = updateMotor;
+        dashBoard.putStringArray("curMotors", new String[] {testMotor1.toString(), testMotor2.toString()});	//Prints the current motors to the dash board
+    }
+    
+    public void disabledInit() {
+    	testMotor1.changeMotor(MotorType.NULL, -1, false);													//Sets both motors to null when the robot is disabled
+    	testMotor2.changeMotor(MotorType.NULL, -1, false);
+    	
+    	dashBoard.putStringArray("curMotors", new String[] {testMotor1.toString(), testMotor2.toString()});	//Prints the current motors to the dash board
+    }
+    
+    public void disabledPeriodic() {
+    	for(int i = 0; i < digInput.length; i++)
+        	digitalValues[i] = !digInput[i].get();
+        dashBoard.putBooleanArray("DIO Values", digitalValues);
+        
+        for (int i = 0; i < analogIns.length; i++)
+        	analogueValues[i] = analogIns[i].getAverageVoltage();
+        dashBoard.putNumberArray("analogueValues", analogueValues);
+    }
+}
